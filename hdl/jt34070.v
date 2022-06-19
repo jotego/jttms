@@ -35,7 +35,7 @@ module jt34070(
     output reg [3:0] blue
 );
 
-reg  [13:0] pal[0:15];
+reg  [13:0] pal[0:15]; // 16*16 bits = 256 bits, one row of the TMS4461
 reg  [ 4:0] rdcnt;
 reg  [ 7:0] dlatch;
 wire [ 3:0] amux;
