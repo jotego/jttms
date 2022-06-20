@@ -23,6 +23,8 @@ module jt34061(
     input            pxl_cen,
 
     // Memory access
+    input      [7:0] din,
+
     input      [7:0] ra,    // row address
     input      [7:0] ca,    // column address
     input            cs,    // ~CS pin
@@ -36,7 +38,7 @@ module jt34061(
     output           vs,
     output           lhbl,
     output           lvbl,
-    output           blank,
+    output           blank_n,
     output           int_n,
 
 );
@@ -65,7 +67,7 @@ wire [11:0] hs_end,
             v_int, xy_offset;
 
 // hidden registers
-reg  [11:0] h_cnt;
+reg  [11:0] h_cnt=0, v_cnt=0;
 reg  [ 9:0] rfsh_addr; // refresh address
 reg  [ 2:0] rfsh_cnt;  // refresh burst counter
 reg  [ 3:0] scan_cnt;  // scan line counter
@@ -87,7 +89,24 @@ assign disp_start = mmr[ 9][11:0];
 assign v_int      = mmr[10][11:0];
 assign xy_offset  = mmr[14][11:0];
 
-assign blank = ~(lhbl & lvbl);
+assign blank_n    = lhbl & lvbl;
+
+always @(posedge clk) begin
+    // HS -active high- & LHBL
+    h_cnt <= h_cnt == h_total ? 12'd0 : h_cnt+12'd1;
+    if( h_cnt == h_total  ) hs   <= 1;
+    if( h_cnt == hs_end   ) hs   <= 0;
+    if( h_cnt == hb_end   ) lhbl <= 1;
+    if( h_cnt == hb_start ) begin
+        lhbl  <= 0;
+        // VS
+        v_cnt <= v_cnt == v_total ? 12'd0 : v_cnt+12'd1;
+        if( v_cnt == v_total  ) vs   <= 1;
+        if( v_cnt == vs_end   ) vs   <= 0;
+        if( v_cnt == vb_end   ) lvbl <= 1;
+        if( v_cnt == vb_start ) lvbl <= 0;
+    end
+end
 
 always @(posedge clk, posedge rst) begin
     if( rst ) begin
@@ -105,7 +124,6 @@ always @(posedge clk, posedge rst) begin
         v_int      <= V_INT;
         xy_offset  <= XY_OFFSET;
         // hidden registers
-        h_cnt      <= 0;
         rfsh_addr  <= 0;
         rfsh_cnt   <= 0;
         scan_cnt   <= 0;
@@ -113,6 +131,14 @@ always @(posedge clk, posedge rst) begin
     end else begin
         ale_l <= ale;
         if( !ale && ale_l ) begin
+            case( fs )
+                0,2: if ( !wrn ) begin
+                    if( ca[1] )
+                        mmr[ ca[6:2] ][15:8] <= din;
+                    else
+                        mmr[ ca[6:2] ][ 7:0] <= din;
+                end
+            endcase // fs
         end
     end
 end
